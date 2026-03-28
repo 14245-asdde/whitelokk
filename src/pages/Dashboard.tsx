@@ -11,6 +11,16 @@ import MarkdownEditor from '../components/MarkdownEditor';
 import { SOCIAL_PLATFORMS } from '../components/SocialIcons';
 import toast from 'react-hot-toast';
 
+export const VIEW_MEDALS = [
+  { id: 'bronze',   label: 'Бронза',   threshold: 100 },
+  { id: 'silver',   label: 'Серебро',  threshold: 500 },
+  { id: 'gold',     label: 'Золото',   threshold: 1000 },
+  { id: 'platinum', label: 'Платина',  threshold: 5000 },
+  { id: 'diamond',  label: 'Алмаз',    threshold: 10000 },
+  { id: 'obsidian', label: 'Обсидиан', threshold: 50000 },
+  { id: 'legend',   label: 'Легенда',  threshold: 100000 },
+];
+
 const ADMIN_USERNAME = 'ebatelmamok100_7';
 
 const BADGE_OPTIONS: Badge[] = [
@@ -65,6 +75,8 @@ function generateInviteCode(): string {
 }
 
 type TabId = 'profile' | 'appearance' | 'badges' | 'social' | 'music' | 'discord' | 'admin';
+
+
 
 function SectionCard({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
@@ -179,10 +191,16 @@ export default function Dashboard() {
   const [newSocialUrl, setNewSocialUrl] = useState('');
   // Admin
   const [inviteCodes, setInviteCodes] = useState<{
-    id: string; code: string; isUsed: boolean; createdAt: number; usedBy?: string;
+    id: string; code: string; isUsed: boolean; createdAt: number; usedBy?: string; isTopKey?: boolean;
   }[]>([]);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [adminStats, setAdminStats] = useState({ total: 0, used: 0, available: 0 });
+
+  // Custom badge
+  const [customBadgeLabel, setCustomBadgeLabel] = useState('');
+  const [customBadgeDesc, setCustomBadgeDesc] = useState('');
+  const [customBadgeImage, setCustomBadgeImage] = useState('');
+  const customBadgeInputRef = useRef<HTMLInputElement>(null);
 
   const audioInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -962,52 +980,223 @@ export default function Dashboard() {
 
           {/* BADGES TAB */}
           {activeTab === 'badges' && (
-            <SectionCard title="Значки профиля">
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>
-                Нажми на значок чтобы добавить или убрать
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
-                {BADGE_OPTIONS.map(badge => {
-                  const active = badges.some(b => b.id === badge.id);
-                  return (
-                    <button
-                      key={badge.id}
-                      onClick={() => toggleBadge(badge)}
-                       style={{
-                         padding: '10px 14px',
-                         borderRadius: 10,
-                         fontSize: 13, fontWeight: 600,
-                         cursor: 'pointer', transition: 'all 0.15s',
-                         background: active ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)',
-                         color: active ? '#fff' : 'rgba(255,255,255,0.4)',
-                         border: active ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.07)',
-                         display: 'flex', alignItems: 'center', gap: 8,
-                         textAlign: 'left',
-                       }}
-                    >
-                      <span style={{ fontSize: 16 }}>{badge.icon}</span>
-                      <span style={{ fontSize: 12 }}>{badge.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              {badges.length > 0 && (
-                <div style={{ marginTop: 8 }}>
-                  <Label>Активные значки ({badges.length})</Label>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {badges.map(b => (
-                      <span key={b.id} style={{
-                        padding: '4px 10px', borderRadius: 999,
-                        background: 'rgba(255,255,255,0.08)',
-                        fontSize: 12, display: 'flex', alignItems: 'center', gap: 5,
+            <>
+              {/* Standard badges */}
+              <SectionCard title="Стандартные значки">
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginBottom: 4 }}>
+                  Нажми чтобы добавить / убрать. Показываются только иконками с тултипом.
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
+                  {BADGE_OPTIONS.map(badge => {
+                    const active = badges.some(b => b.id === badge.id);
+                    return (
+                      <button
+                        key={badge.id}
+                        onClick={() => toggleBadge(badge)}
+                        style={{
+                          padding: '10px 14px', borderRadius: 10,
+                          fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
+                          background: active ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)',
+                          color: active ? '#fff' : 'rgba(255,255,255,0.4)',
+                          border: active ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.07)',
+                          display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left',
+                        }}
+                      >
+                        <span style={{ fontSize: 16, filter: 'grayscale(1) brightness(1.8)' }}>{badge.icon}</span>
+                        <div>
+                          <div style={{ fontSize: 12 }}>{badge.label}</div>
+                          {active && <div style={{ fontSize: 10, color: 'rgba(100,255,150,0.7)', marginTop: 1 }}>✓ активен</div>}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </SectionCard>
+
+              {/* Medals info */}
+              <SectionCard title="Медали (автоматически по просмотрам)">
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginBottom: 8 }}>
+                  Медали выдаются автоматически при достижении порогов просмотров
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {VIEW_MEDALS.map(medal => {
+                    const earned = (profile.views || 0) >= medal.threshold;
+                    return (
+                      <div key={medal.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '8px 12px', borderRadius: 10,
+                        background: earned ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
+                        border: earned ? '1px solid rgba(255,255,255,0.15)' : '1px solid rgba(255,255,255,0.05)',
+                        opacity: earned ? 1 : 0.5,
                       }}>
-                        {b.icon} {b.label}
-                      </span>
+                        <div style={{ fontSize: 18 }}>
+                          {earned ? '★' : '☆'}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: earned ? '#fff' : 'rgba(255,255,255,0.4)' }}>
+                            {medal.label}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 1 }}>
+                            {medal.threshold.toLocaleString('ru')} просмотров
+                          </div>
+                        </div>
+                        <div style={{
+                          fontSize: 11, fontWeight: 700,
+                          color: earned ? 'rgba(100,255,150,0.8)' : 'rgba(255,255,255,0.2)',
+                          padding: '3px 8px', borderRadius: 6,
+                          background: earned ? 'rgba(100,255,150,0.08)' : 'rgba(255,255,255,0.04)',
+                        }}>
+                          {earned ? '✓ Получена' : `Ещё ${(medal.threshold - (profile.views || 0)).toLocaleString('ru')}`}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </SectionCard>
+
+              {/* Custom badge */}
+              <SectionCard title="Создать свой значок">
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginBottom: 4 }}>
+                  Загрузи свою картинку и придумай название
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div
+                      onClick={() => customBadgeInputRef.current?.click()}
+                      style={{
+                        width: 52, height: 52, borderRadius: 10, cursor: 'pointer',
+                        background: customBadgeImage ? `url(${customBadgeImage}) center/cover` : 'rgba(255,255,255,0.05)',
+                        border: '2px dashed rgba(255,255,255,0.12)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 20, flexShrink: 0, transition: 'border-color 0.2s',
+                      }}
+                    >
+                      {!customBadgeImage && '🖼'}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginBottom: 6 }}>
+                        Картинка (PNG/JPG до 1MB)
+                      </div>
+                      <button
+                        onClick={() => customBadgeInputRef.current?.click()}
+                        style={{
+                          padding: '6px 12px', borderRadius: 7,
+                          background: 'rgba(255,255,255,0.07)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          color: '#fff', fontSize: 11, cursor: 'pointer',
+                        }}
+                      >
+                        {customBadgeImage ? '↺ Заменить' : '+ Загрузить'}
+                      </button>
+                    </div>
+                    <input
+                      ref={customBadgeInputRef}
+                      type="file" accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={async e => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 1024 * 1024) { toast.error('Файл больше 1MB'); return; }
+                        const b64 = await fileToBase64(file);
+                        setCustomBadgeImage(b64);
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <Label>Название значка</Label>
+                    <input
+                      style={inputStyle}
+                      placeholder="Например: Мой кастомный бейдж"
+                      value={customBadgeLabel}
+                      onChange={e => setCustomBadgeLabel(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label>Описание (показывается в тултипе)</Label>
+                    <input
+                      style={inputStyle}
+                      placeholder="Описание бейджа..."
+                      value={customBadgeDesc}
+                      onChange={e => setCustomBadgeDesc(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!customBadgeLabel.trim()) { toast.error('Введи название'); return; }
+                      if (!customBadgeImage) { toast.error('Загрузи картинку'); return; }
+                      const newBadge: Badge = {
+                        id: `custom_${Date.now()}`,
+                        icon: '🏷',
+                        label: customBadgeLabel.trim(),
+                        description: customBadgeDesc.trim() || undefined,
+                        isCustom: true,
+                        customImageBase64: customBadgeImage,
+                      };
+                      setBadges(prev => [...prev, newBadge]);
+                      setCustomBadgeLabel('');
+                      setCustomBadgeDesc('');
+                      setCustomBadgeImage('');
+                      markChanged();
+                      toast.success('Кастомный значок добавлен!');
+                    }}
+                    style={{
+                      padding: '10px 20px', borderRadius: 10,
+                      background: 'rgba(255,255,255,0.1)',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      color: '#fff', fontSize: 13, fontWeight: 700,
+                      cursor: 'pointer', alignSelf: 'flex-start',
+                    }}
+                  >
+                    + Добавить значок
+                  </button>
+                </div>
+              </SectionCard>
+
+              {/* Active badges list */}
+              {badges.length > 0 && (
+                <SectionCard title={`Активные значки (${badges.length})`}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {badges.map(b => (
+                      <div key={b.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '8px 12px', borderRadius: 9,
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(255,255,255,0.07)',
+                      }}>
+                        <div style={{
+                          width: 28, height: 28, borderRadius: 7,
+                          background: 'rgba(255,255,255,0.06)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                          overflow: 'hidden',
+                        }}>
+                          {b.isCustom && b.customImageBase64 ? (
+                            <img src={b.customImageBase64} style={{ width: 22, height: 22, objectFit: 'contain' }} />
+                          ) : (
+                            <span style={{ fontSize: 14, filter: 'grayscale(1) brightness(1.8)' }}>{b.icon}</span>
+                          )}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600 }}>{b.label}</div>
+                          {b.description && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>{b.description}</div>}
+                          {b.isCustom && <div style={{ fontSize: 10, color: 'rgba(150,200,255,0.6)', marginTop: 1 }}>кастомный</div>}
+                        </div>
+                        <button
+                          onClick={() => { setBadges(badges.filter(x => x.id !== b.id)); markChanged(); }}
+                          style={{
+                            padding: '4px 10px', borderRadius: 6,
+                            background: 'rgba(255,80,80,0.08)',
+                            border: '1px solid rgba(255,80,80,0.15)',
+                            color: 'rgba(255,100,100,0.7)', fontSize: 11, cursor: 'pointer',
+                          }}
+                        >
+                          Убрать
+                        </button>
+                      </div>
                     ))}
                   </div>
-                </div>
+                </SectionCard>
               )}
-            </SectionCard>
+            </>
           )}
 
           {/* SOCIAL TAB */}
@@ -1299,6 +1488,43 @@ export default function Dashboard() {
                     ↻ Обновить
                   </button>
                 </div>
+              </SectionCard>
+
+              {/* TOP KEY generation */}
+              <SectionCard title="TOP KEY — особые ключи">
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 8, lineHeight: 1.5 }}>
+                  Пользователь зарегистрированный по TOP KEY получает специальный значок «TOP KEY» на профиле
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!user) return;
+                    const code = generateInviteCode();
+                    try {
+                      await addDoc(collection(db, 'inviteCodes'), {
+                        code, isUsed: false, isTopKey: true,
+                        createdBy: user.uid, createdAt: Date.now(),
+                      });
+                      toast.success(`TOP KEY создан: ${code}`);
+                      await loadInviteCodes();
+                    } catch (e: unknown) {
+                      const err = e as { message?: string };
+                      toast.error('Ошибка: ' + (err.message || ''));
+                    }
+                  }}
+                  disabled={inviteLoading}
+                  style={{
+                    padding: '10px 20px', borderRadius: 10,
+                    background: 'rgba(255,255,255,0.08)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#fff', fontSize: 13, fontWeight: 700,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
+                  </svg>
+                  + TOP KEY
+                </button>
               </SectionCard>
 
               <SectionCard title={`Инвайт-коды (${inviteCodes.length})`}>

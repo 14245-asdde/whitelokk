@@ -12,7 +12,7 @@ export default function AuthPage() {
   const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function checkInviteCode(code: string): Promise<{ valid: boolean; docId?: string }> {
+  async function checkInviteCode(code: string): Promise<{ valid: boolean; docId?: string; isTopKey?: boolean }> {
     const trimmed = code.trim();
     try {
       const q = query(
@@ -22,7 +22,8 @@ export default function AuthPage() {
       );
       const snap = await getDocs(q);
       if (!snap.empty) {
-        return { valid: true, docId: snap.docs[0].id };
+        const data = snap.docs[0].data();
+        return { valid: true, docId: snap.docs[0].id, isTopKey: data.isTopKey === true };
       }
       return { valid: false };
     } catch (e) {
@@ -82,7 +83,7 @@ export default function AuthPage() {
       }
 
       // Check invite
-      const { valid, docId } = await checkInviteCode(inviteCode);
+      const { valid, docId, isTopKey } = await checkInviteCode(inviteCode);
       if (!valid || !docId) {
         toast.error('Инвайт-код недействителен или уже использован');
         setLoading(false);
@@ -113,6 +114,7 @@ export default function AuthPage() {
         cardAnimation: 'fade',
         showViews: true,
         showUid: false,
+        topKey: isTopKey === true,
       };
 
       await setDoc(doc(db, 'users', uid), defaultProfile);

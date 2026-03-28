@@ -3,6 +3,16 @@ export interface Badge {
   icon: string;
   label: string;
   color?: string;
+  isCustom?: boolean;
+  customImageBase64?: string;
+  description?: string;
+}
+
+export interface ViewMedal {
+  id: string;
+  label: string;
+  threshold: number;
+  svg: string; // SVG string for medal icon
 }
 
 export interface SocialLink {
@@ -51,11 +61,14 @@ export interface UserProfile {
   blurEffect?: boolean;
   glassEffect?: boolean;
   socialIconColor?: string;
-  // Appearance settings
   cardAnimation?: 'fade' | 'slide' | 'scale' | 'none';
   showViews?: boolean;
   showUid?: boolean;
   numericUid?: string;
+  // Anti-cheat views
+  viewSessions?: string[];
+  lastViewAt?: number;
+  topKey?: boolean; // special TOP badge
 }
 
 export interface InviteCode {
@@ -65,4 +78,5 @@ export interface InviteCode {
   usedAt?: number;
   createdAt: number;
   isUsed: boolean;
+  isTopKey?: boolean;
 }
