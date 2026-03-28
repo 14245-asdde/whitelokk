@@ -11,19 +11,7 @@ function AppRoutes() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          <div style={{ fontSize: 32, filter: 'grayscale(1)', animation: 'spin 1s linear infinite' }}>⚡</div>
-          <div style={{ width: 120, height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 99, overflow: 'hidden', position: 'relative' }}>
-            <div style={{
-              position: 'absolute', top: 0, bottom: 0, width: '50%',
-              background: 'rgba(255,255,255,0.3)', borderRadius: 99,
-              animation: 'bar-load 1s ease-in-out infinite',
-            }} />
-          </div>
-        </div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } } @keyframes bar-load { 0% { left: -50%; } 100% { left: 100%; } }`}</style>
-      </div>
+      <div style={{ minHeight: '100vh', background: '#000' }} />
     );
   }
 
