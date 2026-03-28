@@ -1,82 +1,64 @@
 export interface Badge {
   id: string;
-  icon: string;
-  label: string;
-  color?: string;
+  name: string;
+  emoji: string;
+  description: string;
+  isAdmin?: boolean;
+  imageUrl?: string;
+  requiredViews?: number;
   isCustom?: boolean;
-  customImageBase64?: string;
-  description?: string;
-}
-
-export interface ViewMedal {
-  id: string;
-  label: string;
-  threshold: number;
-  svg: string; // SVG string for medal icon
+  createdBy?: string;
 }
 
 export interface SocialLink {
   platform: string;
   url: string;
-  color?: string;
+  icon: string;
+  color: string;
 }
 
 export interface MusicTrack {
   title: string;
   artist: string;
+  url: string;
   coverUrl: string;
-  audioBase64?: string;
-  audioUrl?: string;
-}
-
-export interface DiscordData {
-  id: string;
-  username: string;
-  discriminator: string;
-  avatar: string;
-  bio?: string;
-  tag?: string;
 }
 
 export interface UserProfile {
   uid: string;
   username: string;
-  displayName?: string;
-  avatarBase64?: string;
-  bannerBase64?: string;
+  displayName: string;
   bio: string;
-  location?: string;
-  badges: Badge[];
+  avatarUrl: string;
+  bannerUrl: string;
+  accentColor: string;
   socialLinks: SocialLink[];
+  badges: string[];
   music?: MusicTrack;
-  discordData?: DiscordData;
+  discordId?: string;
+  discordUsername?: string;
+  discordAvatar?: string;
+  discordTag?: string;
+  discordBio?: string;
+  location?: string;
   views: number;
+  numericUid: string;
+  showUid: boolean;
+  showViews: boolean;
+  animation: string;
+  font: string;
   createdAt: number;
-  backgroundType: 'color' | 'gradient' | 'video';
-  backgroundColor?: string;
-  backgroundGradient?: string;
-  backgroundVideoUrl?: string;
-  textColor?: string;
-  accentColor?: string;
-  blurEffect?: boolean;
-  glassEffect?: boolean;
-  socialIconColor?: string;
-  cardAnimation?: 'fade' | 'slide' | 'scale' | 'none';
-  showViews?: boolean;
-  showUid?: boolean;
-  numericUid?: string;
-  // Anti-cheat views
-  viewSessions?: string[];
-  lastViewAt?: number;
-  topKey?: boolean; // special TOP badge
+  isAdmin?: boolean;
 }
 
 export interface InviteCode {
   code: string;
+  used: boolean;
   createdBy: string;
+  createdAt: number;
   usedBy?: string;
   usedAt?: number;
-  createdAt: number;
-  isUsed: boolean;
-  isTopKey?: boolean;
+  // для входящих инвайтов (волна раздачи)
+  receivedBy?: string; // uid получателя
+  isWave?: boolean;
 }

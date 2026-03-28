@@ -1,56 +1,57 @@
-# Firebase Firestore Rules
+# Правила Firestore для WhiteLok
 
-## ⚠️ ОБЯЗАТЕЛЬНО: Вставь эти правила в Firebase Console → Firestore → Rules
+Скопируй и вставь эти правила в Firebase Console → Firestore → Rules:
 
 ```
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Профили пользователей
-    match /users/{uid} {
-      // Читать профиль может любой (для публичного просмотра)
+    // Пользователи
+    match /users/{userId} {
       allow read: if true;
-      // Писать может только сам пользователь
-      allow create: if request.auth != null && request.auth.uid == uid;
-      allow update: if request.auth != null && request.auth.uid == uid;
-      allow delete: if request.auth != null && request.auth.uid == uid;
-    }
-
-    // Инвайт-коды
-    match /inviteCodes/{codeId} {
-      // Читать могут только авторизованные
-      allow read: if request.auth != null;
-      // Создавать может только авторизованный пользователь
-      allow create: if request.auth != null;
-      // Обновлять (пометить использованным) может любой авторизованный
-      allow update: if request.auth != null;
-      // Удалять нельзя
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
       allow delete: if false;
     }
 
+    // Инвайты
+    match /invites/{inviteId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if false;
+    }
+
+    // Логи просмотров
+    match /viewLogs/{logId} {
+      allow read: if request.auth != null;
+      allow create: if true;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Кастомные бейджи
+    match /customBadges/{badgeId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+
+    // Ключи бейджей
+    match /badgeKeys/{keyId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if false;
+    }
   }
 }
 ```
 
-## Шаги:
-1. Firebase Console → Firestore Database → Rules
-2. Удали старые правила
-3. Вставь правила выше
-4. Нажми "Publish"
-
-## Authentication:
-1. Firebase Console → Authentication → Sign-in method
-2. Включи "Email/Password"
-3. Сохрани
-
-## Первый аккаунт:
-Для создания первого аккаунта нужен инвайт-код.
-Чтобы создать первый код вручную — добавь документ в Firestore:
-
-Коллекция: `inviteCodes`
-Поля:
-- code: "ТВОЙ_КОД_20_СИМВОЛОВ"  (например: "aB3kLmNqRsTuVwXyZ012")
-- isUsed: false
-- createdAt: 1700000000000
-- createdBy: "admin"
+# Что нужно включить в Firebase Console:
+1. Authentication → Sign-in method → Email/Password → Включить
+2. Firestore Database → Создать базу данных (в режиме production)
+3. Вставить правила выше
+```

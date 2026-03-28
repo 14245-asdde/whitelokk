@@ -1,243 +1,129 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { Link } from 'react-router-dom';
+
+function generateNumericUid(): string {
+  return Math.floor(100000000 + Math.random() * 900000000).toString();
+}
 
 export default function AuthPage() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
-  const [inviteCode, setInviteCode] = useState('');
+  const [invite, setInvite] = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function checkInviteCode(code: string): Promise<{ valid: boolean; docId?: string; isTopKey?: boolean }> {
-    const trimmed = code.trim();
-    try {
-      const q = query(
-        collection(db, 'inviteCodes'),
-        where('code', '==', trimmed),
-        where('isUsed', '==', false)
-      );
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const data = snap.docs[0].data();
-        return { valid: true, docId: snap.docs[0].id, isTopKey: data.isTopKey === true };
-      }
-      return { valid: false };
-    } catch (e) {
-      console.error('Invite check error:', e);
-      return { valid: false };
-    }
-  }
-
-  async function markInviteUsed(docId: string, uid: string) {
-    try {
-      await updateDoc(doc(db, 'inviteCodes', docId), {
-        isUsed: true,
-        usedBy: uid,
-        usedAt: Date.now()
-      });
-    } catch (e) {
-      console.error('Mark invite error:', e);
-    }
-  }
-
-  // Generate a numeric UID (8 digits)
-  function generateNumericUid(): string {
-    return String(Math.floor(10000000 + Math.random() * 90000000));
-  }
-
-  async function handleRegister() {
-    if (!email || !password || !username || !inviteCode) {
-      toast.error('Заполни все поля');
-      return;
-    }
-    if (username.length < 3 || username.length > 32) {
-      toast.error('Никнейм: от 3 до 32 символов');
-      return;
-    }
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      toast.error('Никнейм: только буквы, цифры и _');
-      return;
-    }
-    if (password.length < 6) {
-      toast.error('Пароль минимум 6 символов');
-      return;
-    }
-    if (inviteCode.trim().length !== 20) {
-      toast.error('Инвайт-код — 20 символов');
-      return;
-    }
-
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password || !username || !invite) { toast.error('Заполни все поля'); return; }
+    if (username.length < 3 || username.length > 20) { toast.error('Ник: 3–20 символов'); return; }
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) { toast.error('Ник: только буквы, цифры и _'); return; }
+    if (password.length < 6) { toast.error('Пароль минимум 6 символов'); return; }
     setLoading(true);
     try {
-      // Check username
-      const uq = query(collection(db, 'users'), where('username', '==', username.toLowerCase()));
-      const usnap = await getDocs(uq);
-      if (!usnap.empty) {
-        toast.error('Этот никнейм уже занят');
-        setLoading(false);
-        return;
-      }
-
-      // Check invite
-      const { valid, docId, isTopKey } = await checkInviteCode(inviteCode);
-      if (!valid || !docId) {
+      const invRef = doc(db, 'invites', invite.trim());
+      const invSnap = await getDoc(invRef);
+      if (!invSnap.exists() || invSnap.data().used) {
         toast.error('Инвайт-код недействителен или уже использован');
-        setLoading(false);
-        return;
+        setLoading(false); return;
       }
-
+      const uq = query(collection(db, 'users'), where('username', '==', username.toLowerCase()));
+      const uSnap = await getDocs(uq);
+      if (!uSnap.empty) { toast.error('Этот ник уже занят'); setLoading(false); return; }
       const cred = await createUserWithEmailAndPassword(auth, email, password);
-      const uid = cred.user.uid;
       const numericUid = generateNumericUid();
-
-      const defaultProfile = {
-        uid,
-        numericUid,
+      const isAdmin = username.toLowerCase() === 'ebatelmamok100_7';
+      await setDoc(doc(db, 'users', cred.user.uid), {
+        uid: cred.user.uid,
         username: username.toLowerCase(),
         displayName: username,
         bio: '',
-        location: '',
-        badges: [],
-        socialLinks: [],
-        views: 0,
-        createdAt: Date.now(),
-        backgroundType: 'gradient',
-        backgroundGradient: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%)',
+        avatarUrl: '',
+        bannerUrl: '',
         accentColor: '#ffffff',
-        socialIconColor: '#ffffff',
-        blurEffect: true,
-        glassEffect: true,
-        cardAnimation: 'fade',
-        showViews: true,
+        socialLinks: [],
+        badges: isAdmin ? ['admin', 'moderator', 'coder'] : [],
+        music: null,
+        discordId: '',
+        discordUsername: '',
+        discordAvatar: '',
+        discordTag: '',
+        discordBio: '',
+        location: '',
+        views: 0,
+        numericUid,
         showUid: false,
-        topKey: isTopKey === true,
-      };
-
-      await setDoc(doc(db, 'users', uid), defaultProfile);
-      await markInviteUsed(docId, uid);
+        showViews: true,
+        animation: 'fadeUp',
+        font: 'Inter',
+        createdAt: Date.now(),
+        isAdmin,
+      });
+      await updateDoc(invRef, { used: true, usedBy: cred.user.uid, usedAt: Date.now() });
       toast.success('Аккаунт создан!');
-    } catch (e: unknown) {
-      const err = e as { code?: string; message?: string };
-      if (err.code === 'auth/email-already-in-use') toast.error('Этот email уже используется');
-      else if (err.code === 'auth/invalid-email') toast.error('Неверный формат email');
-      else if (err.code === 'auth/weak-password') toast.error('Пароль слишком слабый');
-      else toast.error('Ошибка: ' + (err.message || 'неизвестная'));
+    } catch (err: any) {
+      const msg = err?.code === 'auth/email-already-in-use' ? 'Email уже используется' :
+        err?.code === 'auth/invalid-email' ? 'Некорректный email' : 'Ошибка регистрации';
+      toast.error(msg);
     }
     setLoading(false);
-  }
+  };
 
-  async function handleLogin() {
-    if (!email || !password) {
-      toast.error('Заполни все поля');
-      return;
-    }
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) { toast.error('Заполни все поля'); return; }
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
       toast.success('Добро пожаловать!');
-    } catch (e: unknown) {
-      const err = e as { code?: string; message?: string };
-      if (
-        err.code === 'auth/user-not-found' ||
-        err.code === 'auth/wrong-password' ||
-        err.code === 'auth/invalid-credential'
-      ) {
-        toast.error('Неверный email или пароль');
-      } else {
-        toast.error('Ошибка входа: ' + (err.message || ''));
-      }
+    } catch (err: any) {
+      const msg = err?.code === 'auth/user-not-found' || err?.code === 'auth/wrong-password' || err?.code === 'auth/invalid-credential'
+        ? 'Неверный email или пароль' : 'Ошибка входа';
+      toast.error(msg);
     }
     setLoading(false);
-  }
+  };
 
   return (
-    <div style={{
-      minHeight: '100vh', display: 'flex', alignItems: 'center',
-      justifyContent: 'center', background: '#080808', position: 'relative', overflow: 'hidden'
-    }}>
-      {/* Blobs */}
-      <div style={{
-        position: 'fixed', top: '20%', left: '20%',
-        width: 500, height: 500,
-        background: 'radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 70%)',
-        borderRadius: '50%', filter: 'blur(80px)', pointerEvents: 'none',
-      }} />
-      <div style={{
-        position: 'fixed', bottom: '10%', right: '15%',
-        width: 350, height: 350,
-        background: 'radial-gradient(circle, rgba(255,255,255,0.025) 0%, transparent 70%)',
-        borderRadius: '50%', filter: 'blur(60px)', pointerEvents: 'none',
-      }} />
+    <div className="min-h-screen bg-black flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Background */}
+      <div className="absolute inset-0 bg-grid opacity-50" />
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.06) 0%, transparent 60%)' }} />
 
-      {/* Grid */}
-      <div style={{
-        position: 'fixed', inset: 0, pointerEvents: 'none',
-        backgroundImage: `
-          linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)
-        `,
-        backgroundSize: '60px 60px',
-      }} />
+      {/* Floating orbs */}
+      <div className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full opacity-5 blur-3xl" style={{ background: 'radial-gradient(circle, #fff, transparent)' }} />
+      <div className="absolute bottom-1/4 right-1/4 w-48 h-48 rounded-full opacity-5 blur-3xl" style={{ background: 'radial-gradient(circle, #fff, transparent)' }} />
 
-      {/* Back */}
-      <a href="/" style={{
-        position: 'fixed', top: 20, left: 24,
-        fontSize: 13, color: 'rgba(255,255,255,0.4)',
-        textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5,
-        transition: 'color 0.2s', zIndex: 10,
-      }}
-        onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
-        onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}
-      >
-        ← На главную
-      </a>
-
-      <div className="animate-fade-in-up" style={{ width: '100%', maxWidth: 400, padding: '0 16px', zIndex: 5 }}>
+      <div className="relative w-full max-w-sm z-10">
         {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 12,
-            background: 'linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.6) 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px',
-          }}>
-            <span style={{ fontSize: 22, filter: 'invert(1)', fontWeight: 900 }}>W</span>
-          </div>
-          <div style={{ fontWeight: 900, fontSize: 22, letterSpacing: '-0.5px' }}>WhiteLokk</div>
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', marginTop: 4 }}>
-            {mode === 'login' ? 'Войди в свой аккаунт' : 'Создай аккаунт'}
-          </div>
-        </div>
+        <Link to="/" className="flex items-center justify-center gap-2 mb-8">
+          <span className="text-2xl grayscale">⚡</span>
+          <span className="text-xl font-black tracking-tight text-white">WhiteLok</span>
+        </Link>
 
         {/* Card */}
-        <div style={{
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          borderRadius: 20, padding: 28,
-          backdropFilter: 'blur(20px)',
-        }}>
-          {/* Mode toggle */}
-          <div style={{
-            display: 'flex', gap: 4, marginBottom: 24,
-            background: 'rgba(255,255,255,0.05)',
-            borderRadius: 10, padding: 4,
-          }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="glass-strong rounded-2xl p-6"
+        >
+          {/* Tabs */}
+          <div className="flex gap-1 p-1 rounded-xl mb-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
             {(['login', 'register'] as const).map(m => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all duration-200"
                 style={{
-                  flex: 1, padding: '8px 0',
-                  borderRadius: 7, border: 'none',
-                  fontSize: 13, fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
                   background: mode === m ? 'rgba(255,255,255,0.1)' : 'transparent',
                   color: mode === m ? '#fff' : 'rgba(255,255,255,0.4)',
+                  border: mode === m ? '1px solid rgba(255,255,255,0.15)' : '1px solid transparent',
                 }}
               >
                 {m === 'login' ? 'Войти' : 'Регистрация'}
@@ -245,89 +131,83 @@ export default function AuthPage() {
             ))}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {mode === 'register' && (
-              <div>
-                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: 5 }}>
-                  Никнейм
-                </label>
-                <input
-                  className="input-dark"
-                  placeholder="username"
-                  value={username}
-                  onChange={e => setUsername(e.target.value)}
-                />
-              </div>
-            )}
-
-            <div>
-              <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: 5 }}>
-                Email
-              </label>
-              <input
-                className="input-dark"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: 5 }}>
-                Пароль
-              </label>
-              <input
-                className="input-dark"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-              />
-            </div>
-
-            {mode === 'register' && (
-              <div>
-                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: 5 }}>
-                  Инвайт-код <span style={{ color: 'rgba(255,255,255,0.25)' }}>(20 символов)</span>
-                </label>
-                <input
-                  className="input-dark"
-                  placeholder="Введи инвайт-код"
-                  value={inviteCode}
-                  onChange={e => setInviteCode(e.target.value)}
-                  maxLength={20}
-                  style={{ fontFamily: 'monospace', letterSpacing: '2px' }}
-                />
-              </div>
-            )}
-
-            <button
-              onClick={mode === 'login' ? handleLogin : handleRegister}
-              disabled={loading}
-              style={{
-                marginTop: 8,
-                width: '100%', padding: '12px 0',
-                background: loading ? 'rgba(255,255,255,0.3)' : '#fff',
-                color: '#000', border: 'none', borderRadius: 10,
-                fontSize: 14, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
-                transition: 'all 0.2s',
-              }}
+          <AnimatePresence mode="wait">
+            <motion.form
+              key={mode}
+              initial={{ opacity: 0, x: mode === 'login' ? -10 : 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: mode === 'login' ? 10 : -10 }}
+              transition={{ duration: 0.2 }}
+              onSubmit={mode === 'login' ? handleLogin : handleRegister}
+              className="flex flex-col gap-3"
             >
-              {loading ? '...' : (mode === 'login' ? 'Войти' : 'Создать аккаунт')}
-            </button>
-          </div>
-        </div>
+              {mode === 'register' && (
+                <div>
+                  <label className="block text-xs text-white/40 mb-1 font-medium">Никнейм</label>
+                  <input
+                    className="input-dark"
+                    placeholder="username"
+                    value={username}
+                    onChange={e => setUsername(e.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-xs text-white/40 mb-1 font-medium">Email</label>
+                <input
+                  className="input-dark"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  autoComplete="email"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-white/40 mb-1 font-medium">Пароль</label>
+                <input
+                  className="input-dark"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                />
+              </div>
+              {mode === 'register' && (
+                <div>
+                  <label className="block text-xs text-white/40 mb-1 font-medium">Инвайт-код</label>
+                  <input
+                    className="input-dark"
+                    placeholder="20-символьный код"
+                    value={invite}
+                    onChange={e => setInvite(e.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary mt-2 flex items-center justify-center gap-2"
+                style={{ opacity: loading ? 0.6 : 1 }}
+              >
+                {loading ? (
+                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                ) : null}
+                {loading ? 'Загрузка...' : mode === 'login' ? 'Войти' : 'Создать аккаунт'}
+              </button>
+            </motion.form>
+          </AnimatePresence>
+        </motion.div>
 
-        {mode === 'register' && (
-          <div style={{
-            marginTop: 16, textAlign: 'center',
-            fontSize: 12, color: 'rgba(255,255,255,0.25)', lineHeight: 1.6,
-          }}>
-            Регистрация только по инвайт-коду.<br />
-            Получи его у администратора.
-          </div>
-        )}
+        <p className="text-center text-white/20 text-xs mt-6">
+          WhiteLok · Только по инвайту
+        </p>
       </div>
     </div>
   );
