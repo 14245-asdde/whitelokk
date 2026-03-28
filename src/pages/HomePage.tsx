@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
@@ -7,653 +7,585 @@ export default function HomePage() {
   const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const blobRef = useRef<HTMLDivElement>(null);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [scrollY, setScrollY] = useState(0);
+  const navRef = useRef<HTMLElement>(null);
+  const [scrolled, setScrolled] = useState(false);
 
-  // Canvas частицы
+  // Canvas particles — optimized
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
+    let W = window.innerWidth;
+    let H = window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
+
     const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      W = window.innerWidth;
+      H = window.innerHeight;
+      canvas.width = W;
+      canvas.height = H;
     };
-    resize();
 
-    const particles: {
-      x: number; y: number; size: number;
-      speedX: number; speedY: number; opacity: number; pulse: number;
-    }[] = [];
+    // Меньше частиц, но красивее
+    const COUNT = 50;
+    const particles = Array.from({ length: COUNT }, () => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      size: Math.random() * 1.5 + 0.3,
+      vx: (Math.random() - 0.5) * 0.18,
+      vy: -Math.random() * 0.28 - 0.05,
+      op: Math.random() * 0.3 + 0.04,
+      phase: Math.random() * Math.PI * 2,
+    }));
 
-    for (let i = 0; i < 80; i++) {
-      particles.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        size: Math.random() * 1.2 + 0.2,
-        speedX: (Math.random() - 0.5) * 0.25,
-        speedY: -Math.random() * 0.35 - 0.08,
-        opacity: Math.random() * 0.35 + 0.04,
-        pulse: Math.random() * Math.PI * 2,
-      });
+    let raf: number;
+    let t = 0;
+
+    function draw() {
+      ctx!.clearRect(0, 0, W, H);
+      t += 0.012;
+
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.y < -4) { p.y = H + 4; p.x = Math.random() * W; }
+        if (p.x < -4) p.x = W + 4;
+        if (p.x > W + 4) p.x = -4;
+
+        const alpha = p.op * (0.75 + 0.25 * Math.sin(t + p.phase));
+        ctx!.beginPath();
+        ctx!.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx!.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+        ctx!.fill();
+      }
+
+      raf = requestAnimationFrame(draw);
     }
 
-    let animId: number;
-    let frame = 0;
-    function animate() {
-      if (!ctx || !canvas) return;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      frame++;
-      particles.forEach(p => {
-        p.x += p.speedX;
-        p.y += p.speedY;
-        p.pulse += 0.02;
-        const op = p.opacity * (0.8 + 0.2 * Math.sin(p.pulse));
-        if (p.y < -5) { p.y = canvas.height + 5; p.x = Math.random() * canvas.width; }
-        if (p.x < -5) p.x = canvas.width + 5;
-        if (p.x > canvas.width + 5) p.x = -5;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,255,255,${op})`;
-        ctx.fill();
-      });
-      animId = requestAnimationFrame(animate);
+    draw();
+    window.addEventListener('resize', resize, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
+
+  // Blob — direct DOM, lerp, no setState
+  useEffect(() => {
+    const target = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    const cur = { x: target.x, y: target.y };
+
+    const onMove = (e: MouseEvent) => {
+      target.x = e.clientX;
+      target.y = e.clientY;
+    };
+    window.addEventListener('mousemove', onMove, { passive: true });
+
+    let raf: number;
+    let running = true;
+    function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
+    function tick() {
+      if (!running) return;
+      cur.x = lerp(cur.x, target.x, 0.05);
+      cur.y = lerp(cur.y, target.y, 0.05);
+      if (blobRef.current) {
+        blobRef.current.style.transform = `translate(${cur.x - 300}px, ${cur.y - 300}px)`;
+      }
+      raf = requestAnimationFrame(tick);
     }
-    animate();
+    tick();
 
-    window.addEventListener('resize', resize);
-    return () => { cancelAnimationFrame(animId); window.removeEventListener('resize', resize); };
+    return () => {
+      running = false;
+      cancelAnimationFrame(raf);
+      window.removeEventListener('mousemove', onMove);
+    };
   }, []);
 
-  // Blob за курсором
+  // Scroll nav
   useEffect(() => {
-    const handleMove = (e: MouseEvent) => setMousePos({ x: e.clientX, y: e.clientY });
-    window.addEventListener('mousemove', handleMove);
-    return () => window.removeEventListener('mousemove', handleMove);
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  useEffect(() => {
-    const blob = blobRef.current;
-    if (!blob) return;
-    blob.style.left = mousePos.x - 250 + 'px';
-    blob.style.top = mousePos.y - 250 + 'px';
-  }, [mousePos]);
-
-  useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  const goAuth = useCallback(() => navigate(user ? '/dashboard' : '/auth'), [user, navigate]);
 
   const features = [
-    { icon: '⬡', title: 'Персональный профиль', desc: 'Уникальный профиль с аватаром, баннером, биографией и значками' },
-    { icon: '♪', title: 'Музыка', desc: 'Загрузи свой трек — он будет играть прямо на профиле' },
-    { icon: '◈', title: 'Discord', desc: 'Привяжи Discord — аватар, ник, описание и тег' },
-    { icon: '★', title: 'Значки', desc: 'Значки статуса только при наведении — без лишнего текста' },
-    { icon: '◆', title: 'Соцсети', desc: 'Белые иконки с кастомным цветом — все твои платформы' },
-    { icon: '◉', title: 'Аналитика', desc: 'Счётчик просмотров и числовой UID профиля' },
+    { icon: '✦', title: 'Личный профиль', desc: 'Красивая страница с аватаром, баннером, биографией и значками' },
+    { icon: '◈', title: 'Кастомизация', desc: 'Меняй цвета, анимации, фон, эффекты стекла под себя' },
+    { icon: '◎', title: 'Музыка', desc: 'Загрузи трек прямо в профиль — с обложкой и плеером' },
+    { icon: '⬡', title: 'Соцсети', desc: 'Все ссылки в одном месте — с цветными значками' },
+    { icon: '◐', title: 'Discord', desc: 'Привяжи Discord аккаунт и показывай свой профиль' },
+    { icon: '◆', title: 'Инвайт-система', desc: 'Закрытое сообщество — только по приглашению' },
   ];
 
-  const mockBadges = ['🔥', '⭐', '👑', '💎', '🛡️'];
+  const steps = [
+    { n: '01', title: 'Получи инвайт', desc: 'Попроси код у участника сообщества' },
+    { n: '02', title: 'Создай аккаунт', desc: 'Email + никнейм + инвайт-код — и ты внутри' },
+    { n: '03', title: 'Настрой профиль', desc: 'Открой дашборд и сделай страницу своей' },
+  ];
 
   return (
-    <div style={{ minHeight: '100vh', background: '#080808', color: '#fff', position: 'relative', overflow: 'hidden', fontFamily: 'inherit' }}>
-      {/* Canvas */}
-      <canvas ref={canvasRef} style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0 }} />
+    <div style={{ background: '#080808', minHeight: '100vh', position: 'relative', overflowX: 'hidden' }}>
 
-      {/* Cursor blob */}
-      <div ref={blobRef} style={{
-        position: 'fixed', width: 500, height: 500,
-        background: 'radial-gradient(circle, rgba(255,255,255,0.035) 0%, transparent 70%)',
-        borderRadius: '50%', filter: 'blur(80px)',
-        pointerEvents: 'none', zIndex: 1,
-        transition: 'left 0.12s ease, top 0.12s ease',
-      }} />
+      {/* Particles canvas */}
+      <canvas
+        ref={canvasRef}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 0,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Blob — GPU transform */}
+      <div
+        ref={blobRef}
+        style={{
+          position: 'fixed',
+          top: 0, left: 0,
+          width: 600, height: 600,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(255,255,255,0.045) 0%, transparent 65%)',
+          filter: 'blur(50px)',
+          pointerEvents: 'none',
+          zIndex: 0,
+          willChange: 'transform',
+        }}
+      />
 
       {/* Grid */}
-      <div style={{
-        position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1,
-        backgroundImage: `
-          linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px)
-        `,
-        backgroundSize: '64px 64px',
-      }} />
+      <div className="grid-overlay" />
+      <div className="grain-overlay" />
 
-      {/* Статичные блобы */}
-      <div style={{
-        position: 'fixed', top: '5%', left: '5%', width: 700, height: 700,
-        background: 'radial-gradient(circle, rgba(255,255,255,0.018) 0%, transparent 70%)',
-        borderRadius: '50%', filter: 'blur(120px)', pointerEvents: 'none', zIndex: 0,
-      }} />
-      <div style={{
-        position: 'fixed', bottom: '0%', right: '0%', width: 600, height: 600,
-        background: 'radial-gradient(circle, rgba(180,180,255,0.015) 0%, transparent 70%)',
-        borderRadius: '50%', filter: 'blur(100px)', pointerEvents: 'none', zIndex: 0,
-      }} />
-
-      {/* NAV */}
-      <nav style={{
-        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-        background: scrollY > 20 ? 'rgba(8,8,8,0.92)' : 'transparent',
-        backdropFilter: scrollY > 20 ? 'blur(24px)' : 'none',
-        borderBottom: scrollY > 20 ? '1px solid rgba(255,255,255,0.05)' : '1px solid transparent',
-        transition: 'all 0.3s ease',
-        height: 60, display: 'flex', alignItems: 'center',
-        padding: '0 40px', justifyContent: 'space-between',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 30, height: 30, borderRadius: 8,
-            background: 'rgba(255,255,255,0.9)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <span style={{ fontSize: 15, color: '#000', fontWeight: 900 }}>W</span>
+      {/* ── NAV ── */}
+      <nav
+        ref={navRef}
+        className={`home-nav ${scrolled ? 'scrolled' : ''}`}
+      >
+        <div style={{
+          maxWidth: 1100, margin: '0 auto', padding: '0 24px',
+          height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => navigate('/')}>
+            <div style={{
+              width: 30, height: 30, borderRadius: 8,
+              background: 'rgba(255,255,255,0.9)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <span style={{ fontSize: 14, fontWeight: 900, color: '#000' }}>W</span>
+            </div>
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>
+              WhiteLokk
+            </span>
           </div>
-          <span style={{ fontWeight: 900, fontSize: 16, letterSpacing: '-0.5px', color: '#fff' }}>WhiteLokk</span>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {user ? (
-            <button
-              onClick={() => navigate('/dashboard')}
-              style={{
-                padding: '8px 20px', borderRadius: 10,
-                background: '#fff', border: 'none',
-                color: '#000', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                transition: 'transform 0.15s, opacity 0.15s',
-              }}
-              onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
-              onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-            >
-              Дашборд →
-            </button>
-          ) : (
-            <>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {user && (
               <button
-                onClick={() => navigate('/auth')}
+                onClick={() => navigate('/dashboard')}
                 style={{
-                  padding: '8px 18px', borderRadius: 10,
                   background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: 'rgba(255,255,255,0.65)', fontSize: 13, cursor: 'pointer',
-                  transition: 'all 0.2s',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  color: 'rgba(255,255,255,0.6)',
+                  padding: '8px 16px',
+                  borderRadius: 9,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  transition: 'all 0.18s',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.65)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}
-              >
-                Войти
-              </button>
-              <button
-                onClick={() => navigate('/auth')}
-                style={{
-                  padding: '8px 20px', borderRadius: 10,
-                  background: '#fff', border: 'none',
-                  color: '#000', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                  transition: 'transform 0.15s, box-shadow 0.15s',
-                  boxShadow: '0 0 0 rgba(255,255,255,0)',
+                onMouseEnter={e => {
+                  e.currentTarget.style.color = '#fff';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)';
                 }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(255,255,255,0.12)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 0 0 rgba(255,255,255,0)'; }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.color = 'rgba(255,255,255,0.6)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
+                }}
               >
-                Создать профиль
+                Дашборд
               </button>
-            </>
-          )}
+            )}
+            <button onClick={goAuth} className="hero-btn-primary" style={{ padding: '9px 20px', fontSize: 13 }}>
+              {user ? 'Мой профиль →' : 'Войти'}
+            </button>
+          </div>
         </div>
       </nav>
 
-      {/* HERO */}
-      <div style={{
-        position: 'relative', zIndex: 10,
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: 'center', minHeight: '100vh',
-        textAlign: 'center', padding: '100px 24px 80px',
-        gap: 0,
+      {/* ── HERO ── */}
+      <section style={{
+        position: 'relative', zIndex: 2,
+        minHeight: '100vh',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '100px 24px 60px',
       }}>
-        {/* Pill badge */}
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-          padding: '5px 6px 5px 14px', borderRadius: 999,
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.09)',
-          marginBottom: 36, fontSize: 12, color: 'rgba(255,255,255,0.5)',
-          animation: 'fadeIn 0.6s ease both',
-        }}>
-          Только по инвайт-коду
+        <div style={{ maxWidth: 1100, width: '100%', margin: '0 auto' }}>
           <div style={{
-            padding: '3px 10px', borderRadius: 999,
-            background: 'rgba(255,255,255,0.08)',
-            color: 'rgba(255,255,255,0.8)', fontSize: 11, fontWeight: 700,
-          }}>
-            BETA
-          </div>
-        </div>
-
-        {/* Title */}
-        <h1 style={{
-          fontSize: 'clamp(52px, 9vw, 100px)',
-          fontWeight: 900, letterSpacing: '-4px',
-          lineHeight: 0.92, margin: '0 0 24px',
-          animation: 'fadeInUp 0.7s ease both',
-          animationDelay: '0.1s',
-        }}>
-          <span style={{
-            background: 'linear-gradient(180deg, #ffffff 20%, rgba(255,255,255,0.4) 100%)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-          }}>
-            White
-          </span>
-          <span style={{
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.15) 100%)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-          }}>
-            Lokk
-          </span>
-        </h1>
-
-        {/* Subtitle */}
-        <p style={{
-          fontSize: 'clamp(15px, 2vw, 18px)',
-          color: 'rgba(255,255,255,0.4)',
-          maxWidth: 480, lineHeight: 1.65,
-          margin: '0 0 44px',
-          animation: 'fadeInUp 0.7s ease both',
-          animationDelay: '0.18s',
-          fontWeight: 400,
-        }}>
-          Твой персональный профиль с музыкой, Discord, значками и соцсетями. Полностью кастомизируемый.
-        </p>
-
-        {/* CTA */}
-        <div style={{
-          display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center',
-          animation: 'fadeInUp 0.7s ease both',
-          animationDelay: '0.26s',
-        }}>
-          <button
-            onClick={() => navigate('/auth')}
-            style={{
-              padding: '13px 32px', borderRadius: 14,
-              background: '#fff', border: 'none',
-              color: '#000', fontSize: 14, fontWeight: 800,
-              cursor: 'pointer', letterSpacing: '-0.3px',
-              transition: 'transform 0.15s, box-shadow 0.15s',
-              boxShadow: '0 0 40px rgba(255,255,255,0.08)',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 40px rgba(255,255,255,0.18)'; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 0 40px rgba(255,255,255,0.08)'; }}
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 64,
+            alignItems: 'center',
+          }}
+            className="hero-grid"
           >
-            Начать бесплатно →
-          </button>
-          <button
-            onClick={() => { const el = document.getElementById('features'); el?.scrollIntoView({ behavior: 'smooth' }); }}
-            style={{
-              padding: '13px 28px', borderRadius: 14,
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: 'rgba(255,255,255,0.6)', fontSize: 14,
-              cursor: 'pointer', letterSpacing: '-0.2px',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#fff'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; }}
-          >
-            Узнать больше
-          </button>
-        </div>
-
-        {/* Mock profile preview */}
-        <div style={{
-          marginTop: 72,
-          animation: 'fadeInUp 0.8s ease both',
-          animationDelay: '0.35s',
-          position: 'relative',
-        }}>
-          {/* Glow under card */}
-          <div style={{
-            position: 'absolute', bottom: -40, left: '50%', transform: 'translateX(-50%)',
-            width: 300, height: 60,
-            background: 'radial-gradient(ellipse, rgba(255,255,255,0.08) 0%, transparent 70%)',
-            filter: 'blur(20px)',
-            pointerEvents: 'none',
-          }} />
-
-          {/* Mock card */}
-          <div style={{
-            width: 340, borderRadius: 20,
-            background: 'rgba(10,10,10,0.85)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            backdropFilter: 'blur(30px)',
-            boxShadow: '0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)',
-            overflow: 'hidden',
-            animation: 'float 4s ease-in-out infinite',
-          }}>
-            {/* Banner */}
-            <div style={{
-              height: 90,
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)',
-              position: 'relative',
-            }}>
+            {/* Left — text */}
+            <div style={{ animation: 'fadeInUp 0.7s cubic-bezier(0.22,1,0.36,1) forwards' }}>
+              {/* Badge */}
               <div style={{
-                position: 'absolute', inset: 0,
-                background: 'linear-gradient(to bottom, transparent 40%, rgba(10,10,10,0.7) 100%)',
-              }} />
-              {/* Decorative lines */}
-              {[...Array(4)].map((_, i) => (
-                <div key={i} style={{
-                  position: 'absolute',
-                  top: 15 + i * 20, left: 0, right: 0, height: 1,
-                  background: `rgba(255,255,255,${0.04 - i * 0.008})`,
-                }} />
-              ))}
-            </div>
-
-            <div style={{ padding: '0 18px 18px' }}>
-              {/* Avatar */}
-              <div style={{ marginTop: -28, marginBottom: 10 }}>
-                <div style={{
-                  width: 56, height: 56, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #fff, rgba(255,255,255,0.3))',
-                  padding: 2, boxShadow: '0 0 16px rgba(255,255,255,0.15)',
-                }}>
-                  <div style={{
-                    width: '100%', height: '100%', borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #1a1a1a, #2a2a2a)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 20, fontWeight: 900, color: 'rgba(255,255,255,0.8)',
-                  }}>W</div>
-                </div>
-              </div>
-
-              {/* Badges mock */}
-              <div style={{ display: 'flex', gap: 5, marginBottom: 10 }}>
-                {mockBadges.map((b, i) => (
-                  <div key={i} style={{
-                    width: 28, height: 28, borderRadius: 7,
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, filter: 'grayscale(1) brightness(1.5)',
-                  }}>{b}</div>
-                ))}
-              </div>
-
-              {/* Name */}
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#fff', letterSpacing: '-0.4px' }}>WhiteLokk</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginBottom: 10 }}>@whitelokk <span style={{ opacity: 0.5 }}>#12345678</span></div>
-
-              {/* Bio mock */}
-              <div style={{
-                padding: '10px 12px', borderRadius: 10,
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.07)',
-                marginBottom: 12,
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 999, padding: '6px 14px', marginBottom: 28,
+                fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: 500,
               }}>
-                {[70, 90, 55].map((w, i) => (
-                  <div key={i} style={{
-                    height: 8, borderRadius: 4,
-                    background: 'rgba(255,255,255,0.12)',
-                    width: `${w}%`, marginBottom: i < 2 ? 6 : 0,
-                  }} />
-                ))}
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: '#4ade80',
+                  boxShadow: '0 0 6px #4ade80',
+                  display: 'inline-block',
+                  animation: 'pulse-soft 2s ease-in-out infinite',
+                }} />
+                Только по инвайту
               </div>
 
-              {/* Social icons mock */}
-              <div style={{ display: 'flex', gap: 6 }}>
-                {['T', 'D', 'G', 'Y'].map((s, i) => (
-                  <div key={i} style={{
-                    width: 32, height: 32, borderRadius: 8,
-                    background: 'rgba(255,255,255,0.07)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: 700,
-                  }}>{s}</div>
+              <h1 style={{
+                fontSize: 'clamp(40px, 6vw, 68px)',
+                fontWeight: 900,
+                lineHeight: 1.04,
+                letterSpacing: '-2px',
+                color: '#fff',
+                marginBottom: 22,
+              }}>
+                Твой профиль.
+                <br />
+                <span style={{
+                  background: 'linear-gradient(90deg, #fff 0%, rgba(255,255,255,0.45) 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}>
+                  Твои правила.
+                </span>
+              </h1>
+
+              <p style={{
+                fontSize: 16, lineHeight: 1.65,
+                color: 'rgba(255,255,255,0.45)',
+                maxWidth: 440, marginBottom: 36,
+              }}>
+                Создай уникальную биостраницу с музыкой, значками, Discord-профилем
+                и полной кастомизацией. Только для приглашённых.
+              </p>
+
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <button onClick={goAuth} className="hero-btn-primary">
+                  {user ? 'Открыть дашборд' : 'Создать профиль'}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" />
+                  </svg>
+                </button>
+                {!user && (
+                  <button onClick={goAuth} className="hero-btn-secondary">
+                    Войти
+                  </button>
+                )}
+              </div>
+
+              {/* Stats */}
+              <div style={{ display: 'flex', gap: 32, marginTop: 48 }}>
+                {[['∞', 'кастомизация'], ['🔒', 'закрытый клуб'], ['◎', 'ваш стиль']].map(([v, l]) => (
+                  <div key={l}>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: '#fff' }}>{v}</div>
+                    <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>{l}</div>
+                  </div>
                 ))}
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Scroll indicator */}
-        <div style={{
-          position: 'absolute', bottom: 32, left: '50%', transform: 'translateX(-50%)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-          color: 'rgba(255,255,255,0.2)', fontSize: 11,
-          animation: 'pulse-soft 2s ease-in-out infinite',
-        }}>
-          <span>прокрути вниз</span>
-          <div style={{ width: 1, height: 32, background: 'linear-gradient(to bottom, rgba(255,255,255,0.2), transparent)' }} />
-        </div>
-      </div>
-
-      {/* FEATURES SECTION */}
-      <div id="features" style={{
-        position: 'relative', zIndex: 10,
-        padding: '80px 24px 120px',
-        maxWidth: 1100, margin: '0 auto',
-      }}>
-        {/* Section header */}
-        <div style={{ textAlign: 'center', marginBottom: 60 }}>
-          <div style={{
-            display: 'inline-block',
-            padding: '4px 14px', borderRadius: 999,
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            fontSize: 11, color: 'rgba(255,255,255,0.4)',
-            letterSpacing: '1px', textTransform: 'uppercase',
-            marginBottom: 20,
-          }}>
-            Возможности
-          </div>
-          <h2 style={{
-            fontSize: 'clamp(28px, 4vw, 48px)', fontWeight: 900,
-            letterSpacing: '-2px', color: '#fff',
-            background: 'linear-gradient(180deg, #fff 30%, rgba(255,255,255,0.4) 100%)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-          }}>
-            Всё что нужно
-          </h2>
-          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.3)', marginTop: 12 }}>
-            Один профиль — всё о тебе
-          </p>
-        </div>
-
-        {/* Features grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: 16,
-        }}>
-          {features.map((f, i) => (
-            <FeatureCard key={i} icon={f.icon} title={f.title} desc={f.desc} delay={i * 0.06} />
-          ))}
-        </div>
-      </div>
-
-      {/* HOW IT WORKS */}
-      <div style={{
-        position: 'relative', zIndex: 10,
-        padding: '60px 24px 120px',
-        maxWidth: 800, margin: '0 auto',
-        textAlign: 'center',
-      }}>
-        <div style={{
-          display: 'inline-block',
-          padding: '4px 14px', borderRadius: 999,
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          fontSize: 11, color: 'rgba(255,255,255,0.4)',
-          letterSpacing: '1px', textTransform: 'uppercase',
-          marginBottom: 20,
-        }}>
-          Как это работает
-        </div>
-        <h2 style={{
-          fontSize: 'clamp(26px, 4vw, 44px)', fontWeight: 900,
-          letterSpacing: '-2px', marginBottom: 52,
-          background: 'linear-gradient(180deg, #fff 30%, rgba(255,255,255,0.4) 100%)',
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-        }}>
-          Три шага
-        </h2>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-          {[
-            { num: '01', title: 'Получи инвайт', desc: 'Попроси инвайт-код у участника или дожись раздачи от админа' },
-            { num: '02', title: 'Создай профиль', desc: 'Зарегистрируйся, загрузи аватар, баннер, добавь биографию и музыку' },
-            { num: '03', title: 'Делись ссылкой', desc: 'Твой профиль доступен по ссылке domain/username — делись с миром' },
-          ].map((step, i) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'flex-start', gap: 24,
-              padding: '32px 0',
-              borderBottom: i < 2 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-              textAlign: 'left',
+            {/* Right — mock profile card */}
+            <div style={{
+              display: 'flex', justifyContent: 'center',
+              animation: 'fadeInUp 0.7s 0.15s cubic-bezier(0.22,1,0.36,1) both',
             }}>
-              <div style={{
-                minWidth: 48, height: 48,
-                borderRadius: 12,
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 13, fontWeight: 900, color: 'rgba(255,255,255,0.3)',
-                letterSpacing: '-0.5px',
-              }}>{step.num}</div>
-              <div>
-                <div style={{ fontSize: 17, fontWeight: 800, color: '#fff', marginBottom: 6, letterSpacing: '-0.3px' }}>{step.title}</div>
-                <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>{step.desc}</div>
-              </div>
+              <MockProfile />
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* CTA BOTTOM */}
-      <div style={{
-        position: 'relative', zIndex: 10,
-        padding: '0 24px 120px',
-        textAlign: 'center',
-      }}>
-        <div style={{
-          maxWidth: 600, margin: '0 auto',
-          padding: '60px 40px',
-          borderRadius: 24,
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          backdropFilter: 'blur(20px)',
-          position: 'relative', overflow: 'hidden',
-        }}>
-          {/* Glow */}
-          <div style={{
-            position: 'absolute', top: '-50%', left: '50%', transform: 'translateX(-50%)',
-            width: 400, height: 200,
-            background: 'radial-gradient(ellipse, rgba(255,255,255,0.06) 0%, transparent 70%)',
-            pointerEvents: 'none',
-          }} />
-
-          <h2 style={{
-            fontSize: 'clamp(24px, 4vw, 40px)', fontWeight: 900,
-            letterSpacing: '-1.5px', marginBottom: 12,
-            background: 'linear-gradient(180deg, #fff 30%, rgba(255,255,255,0.5) 100%)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-          }}>
-            Готов создать профиль?
-          </h2>
-          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', marginBottom: 32 }}>
-            Нужен инвайт-код. Закрытая бета.
-          </p>
-          <button
-            onClick={() => navigate('/auth')}
-            style={{
-              padding: '14px 40px', borderRadius: 14,
-              background: '#fff', border: 'none',
-              color: '#000', fontSize: 15, fontWeight: 800,
-              cursor: 'pointer', letterSpacing: '-0.3px',
-              transition: 'transform 0.15s, box-shadow 0.15s',
-              boxShadow: '0 0 40px rgba(255,255,255,0.1)',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 40px rgba(255,255,255,0.2)'; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 0 40px rgba(255,255,255,0.1)'; }}
-          >
-            Зарегистрироваться →
-          </button>
-        </div>
-      </div>
-
-      {/* FOOTER */}
-      <footer style={{
-        position: 'relative', zIndex: 10,
-        borderTop: '1px solid rgba(255,255,255,0.05)',
-        padding: '24px 40px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        flexWrap: 'wrap', gap: 12,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            width: 22, height: 22, borderRadius: 6,
-            background: 'rgba(255,255,255,0.9)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <span style={{ fontSize: 11, color: '#000', fontWeight: 900 }}>W</span>
           </div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.6)' }}>WhiteLokk</span>
         </div>
+      </section>
+
+      {/* ── FEATURES ── */}
+      <section style={{ position: 'relative', zIndex: 2, padding: '80px 24px' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 56 }}>
+            <div style={{
+              fontSize: 11.5, fontWeight: 700, letterSpacing: '2px',
+              color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', marginBottom: 14,
+            }}>
+              ВОЗМОЖНОСТИ
+            </div>
+            <h2 style={{ fontSize: 'clamp(28px, 4vw, 42px)', fontWeight: 900, color: '#fff', letterSpacing: '-1px' }}>
+              Всё что тебе нужно
+            </h2>
+            <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.38)', marginTop: 12, maxWidth: 480, margin: '12px auto 0' }}>
+              Мощный набор инструментов для создания уникальной биостраницы
+            </p>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: 16,
+          }}>
+            {features.map((f, i) => (
+              <FeatureCard key={i} {...f} delay={i * 0.06} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── HOW IT WORKS ── */}
+      <section style={{ position: 'relative', zIndex: 2, padding: '80px 24px' }}>
+        <div style={{ maxWidth: 800, margin: '0 auto', textAlign: 'center' }}>
+          <div style={{
+            fontSize: 11.5, fontWeight: 700, letterSpacing: '2px',
+            color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', marginBottom: 14,
+          }}>
+            КАК ЭТО РАБОТАЕТ
+          </div>
+          <h2 style={{ fontSize: 'clamp(28px, 4vw, 42px)', fontWeight: 900, color: '#fff', letterSpacing: '-1px', marginBottom: 48 }}>
+            Три шага
+          </h2>
+
+          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {steps.map((s, i) => (
+              <div
+                key={i}
+                style={{
+                  flex: '1 1 200px', maxWidth: 240,
+                  background: 'rgba(255,255,255,0.025)',
+                  border: '1px solid rgba(255,255,255,0.07)',
+                  borderRadius: 18, padding: '28px 22px',
+                  textAlign: 'left',
+                  position: 'relative', overflow: 'hidden',
+                }}
+              >
+                <div style={{
+                  fontSize: 42, fontWeight: 900,
+                  color: 'rgba(255,255,255,0.04)',
+                  position: 'absolute', top: 12, right: 16,
+                  lineHeight: 1, letterSpacing: -2,
+                }}>{s.n}</div>
+                <div style={{
+                  display: 'inline-block',
+                  background: 'rgba(255,255,255,0.07)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 8, width: 36, height: 36,
+                  lineHeight: '36px', textAlign: 'center',
+                  fontSize: 15, fontWeight: 900, color: '#fff',
+                  marginBottom: 14,
+                }}>{s.n}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 8 }}>{s.title}</div>
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', lineHeight: 1.55 }}>{s.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── CTA ── */}
+      <section style={{ position: 'relative', zIndex: 2, padding: '80px 24px 120px' }}>
+        <div style={{ maxWidth: 600, margin: '0 auto', textAlign: 'center' }}>
+          <div style={{
+            background: 'rgba(255,255,255,0.035)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 24, padding: '56px 40px',
+            position: 'relative', overflow: 'hidden',
+          }}>
+            {/* Glow */}
+            <div style={{
+              position: 'absolute', top: -60, left: '50%', transform: 'translateX(-50%)',
+              width: 300, height: 200,
+              background: 'radial-gradient(ellipse, rgba(255,255,255,0.06) 0%, transparent 70%)',
+              pointerEvents: 'none',
+            }} />
+
+            <div style={{ fontSize: 40, marginBottom: 16 }}>✦</div>
+            <h2 style={{ fontSize: 32, fontWeight: 900, color: '#fff', letterSpacing: '-1px', marginBottom: 14 }}>
+              Готов начать?
+            </h2>
+            <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.4)', lineHeight: 1.6, marginBottom: 32 }}>
+              Получи инвайт-код и создай свой уникальный профиль прямо сейчас
+            </p>
+            <button onClick={goAuth} className="hero-btn-primary" style={{ fontSize: 15, padding: '14px 36px' }}>
+              {user ? 'Открыть дашборд' : 'Начать — это бесплатно'}
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer style={{
+        position: 'relative', zIndex: 2,
+        borderTop: '1px solid rgba(255,255,255,0.06)',
+        padding: '24px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>
-          © 2025 WhiteLokk. Закрытая бета.
+          © 2025 WhiteLokk · Только по инвайту
         </div>
       </footer>
 
+      {/* Responsive CSS */}
       <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px) rotate(-0.5deg); }
-          50% { transform: translateY(-12px) rotate(0.5deg); }
+        @media (max-width: 768px) {
+          .hero-grid {
+            grid-template-columns: 1fr !important;
+            gap: 40px !important;
+            text-align: center;
+          }
         }
       `}</style>
     </div>
   );
 }
 
-function FeatureCard({ icon, title, desc, delay }: { icon: string; title: string; desc: string; delay: number }) {
-  const [hovered, setHovered] = useState(false);
+// ── Mock Profile Card ──
+function MockProfile() {
+  return (
+    <div style={{
+      width: 300,
+      animation: 'float 5s ease-in-out infinite',
+      filter: 'drop-shadow(0 32px 64px rgba(0,0,0,0.7))',
+    }}>
+      <div style={{
+        borderRadius: 22,
+        overflow: 'hidden',
+        background: 'rgba(10,10,10,0.95)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        boxShadow: '0 0 60px rgba(255,255,255,0.05)',
+      }}>
+        {/* Banner */}
+        <div style={{
+          height: 90,
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.03) 100%)',
+          position: 'relative',
+        }}>
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.6) 100%)',
+          }} />
+        </div>
+
+        <div style={{ padding: '0 18px 18px' }}>
+          {/* Avatar */}
+          <div style={{ marginTop: -32 }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%',
+              background: 'conic-gradient(#fff 0%, rgba(255,255,255,0.3) 50%, #fff 100%)',
+              padding: 2, animation: 'spin-slow 6s linear infinite',
+            }}>
+              <div style={{
+                width: '100%', height: '100%', borderRadius: '50%',
+                background: '#111',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 22, fontWeight: 900, color: '#fff',
+              }}>E</div>
+            </div>
+          </div>
+
+          {/* Badges */}
+          <div style={{ display: 'flex', gap: 5, marginTop: 10 }}>
+            {['★', '♦', '◎', '⬡'].map((b, i) => (
+              <div key={i} style={{
+                width: 26, height: 26, borderRadius: 7,
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 10, color: 'rgba(255,255,255,0.7)',
+              }}>{b}</div>
+            ))}
+          </div>
+
+          {/* Name */}
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 17, fontWeight: 900, color: '#fff' }}>ebatelmamok100_7</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', marginTop: 2 }}>@ebatelmamok100_7</div>
+          </div>
+
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '12px 0' }} />
+
+          {/* Bio */}
+          <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
+            Добро пожаловать в мой профиль 👋<br />
+            <span style={{ color: 'rgba(255,255,255,0.3)' }}>Разработчик · Дизайнер</span>
+          </div>
+
+          {/* Social */}
+          <div style={{ display: 'flex', gap: 7, marginTop: 13 }}>
+            {['T', 'D', 'G'].map((s, i) => (
+              <div key={i} style={{
+                width: 32, height: 32, borderRadius: 8,
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.09)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)',
+              }}>{s}</div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Feature Card ──
+function FeatureCard({ icon, title, desc, delay }: {
+  icon: string; title: string; desc: string; delay: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  const onEnter = useCallback(() => {
+    if (ref.current) {
+      ref.current.style.background = 'rgba(255,255,255,0.06)';
+      ref.current.style.borderColor = 'rgba(255,255,255,0.14)';
+      ref.current.style.transform = 'translateY(-4px)';
+    }
+  }, []);
+
+  const onLeave = useCallback(() => {
+    if (ref.current) {
+      ref.current.style.background = 'rgba(255,255,255,0.03)';
+      ref.current.style.borderColor = 'rgba(255,255,255,0.07)';
+      ref.current.style.transform = 'translateY(0)';
+    }
+  }, []);
 
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        padding: '28px 24px',
-        borderRadius: 16,
-        background: hovered ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.025)',
-        border: hovered ? '1px solid rgba(255,255,255,0.14)' : '1px solid rgba(255,255,255,0.07)',
-        transition: 'all 0.25s ease',
-        cursor: 'default',
-        transform: hovered ? 'translateY(-3px)' : 'translateY(0)',
-        animation: `fadeInUp 0.6s ease both`,
-        animationDelay: `${delay}s`,
-      }}
+      ref={ref}
+      className="feature-card"
+      style={{ animationDelay: `${delay}s` }}
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
     >
       <div style={{
-        width: 42, height: 42, borderRadius: 12,
+        width: 44, height: 44, borderRadius: 12,
         background: 'rgba(255,255,255,0.07)',
         border: '1px solid rgba(255,255,255,0.1)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 18, marginBottom: 16,
-        filter: 'grayscale(1) brightness(2)',
-        transition: 'transform 0.2s',
-        transform: hovered ? 'scale(1.1)' : 'scale(1)',
-      }}>
-        {icon}
-      </div>
-      <div style={{
-        fontSize: 15, fontWeight: 800, color: '#fff',
-        marginBottom: 8, letterSpacing: '-0.3px',
-      }}>
-        {title}
-      </div>
-      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>
-        {desc}
-      </div>
+        fontSize: 20, marginBottom: 16,
+        color: '#fff',
+      }}>{icon}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 8 }}>{title}</div>
+      <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.4)', lineHeight: 1.6 }}>{desc}</div>
     </div>
   );
 }
