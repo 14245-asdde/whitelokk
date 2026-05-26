@@ -209,7 +209,7 @@ export default function App() {
 
       <footer className="relative z-10 pt-20 pb-10 text-center">
         <div className="max-w-7xl mx-auto px-4 border-t border-zinc-900 pt-10">
-          <p className="text-zinc-600 text-xs mb-8">© 2024 Easy Anarchy. Все права защищены. Не является официальным продуктом Minecraft.</p>
+          <p className="text-zinc-600 text-xs mb-8">© 2026 Easy Anarchy. Все права защищены. Не является официальным продуктом Minecraft.</p>
           <button onClick={() => setIsAdminOpen(true)} className="text-zinc-900 hover:text-zinc-800 transition-colors text-[10px] font-mono uppercase tracking-[0.3em] cursor-default">
             admin
           </button>
